@@ -1,27 +1,75 @@
-import { readdirSync } from 'fs';
-import { fileURLToPath, pathToFileURL } from 'url';
-import { dirname, join } from 'path';
+import 'dotenv/config';
+import { Client, GatewayIntentBits, Collection } from 'discord.js';
+import express from 'express';
+import { loadCommands } from './handlers/commandHandler.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// ====== Cliente do Discord ======
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildPresences,
+  ],
+});
 
-export async function loadCommands(client) {
-  const commandsPath = join(__dirname, '..', 'commands');
-  const commandFiles = readdirSync(commandsPath).filter(
-    (file) => file.endsWith('.js') && !file.startsWith('.')
-  );
+client.commands = new Collection();
 
-  for (const file of commandFiles) {
-    const filePath = join(commandsPath, file);
-    const command = await import(pathToFileURL(filePath).href);
+// ====== Handler de interações ======
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
 
-    if ('data' in command && 'execute' in command) {
-      client.commands.set(command.data.name, command);
-      console.log(`📦 Comando carregado: ${command.data.name}`);
+  const command = client.commands.get(interaction.commandName);
+  if (!command) return;
+
+  try {
+    await command.execute(interaction);
+  } catch (error) {
+    console.error(`Erro no comando ${interaction.commandName}:`, error);
+    const msg = { content: '❌ Deu erro ao executar esse comando.', ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(msg);
     } else {
-      console.warn(`⚠️ Arquivo ${file} não tem "data" ou "execute", ignorando.`);
+      await interaction.reply(msg);
     }
   }
+});
 
-  console.log(`✅ ${client.commands.size} comando(s) carregado(s).`);
-}
+// ====== Bot online ======
+client.once('ready', () => {
+  console.log(`✅ Bot online como ${client.user.tag}`);
+  console.log(`📡 Servindo ${client.guilds.cache.size} servidor(es)`);
+});
+
+// ====== Express (pro Render não dormir) ======
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => res.send('Bot online! 🤖'));
+app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+
+app.listen(PORT, () => console.log(`🌐 Web server na porta ${PORT}`));
+
+// ====== Login com tratamento de erro ======
+console.log('🔑 Tentando logar...');
+console.log('Token existe?', process.env.DISCORD_TOKEN ? 'Sim' : 'NÃO');
+console.log('Client ID existe?', process.env.CLIENT_ID ? 'Sim' : 'NÃO');
+console.log('Guild ID existe?', process.env.GUILD_ID ? 'Sim' : 'NÃO');
+
+client.login(process.env.DISCORD_TOKEN)
+  .then(() => console.log('✅ Login OK'))
+  .catch((err) => {
+    console.error('❌ Erro no login:', err.message);
+    process.exit(1);
+  });
+
+// ====== Carrega os comandos DEPOIS ======
+// (dentro de um bloco async para não travar o boot)
+(async () => {
+  try {
+    await loadCommands(client);
+  } catch (err) {
+    console.error('⚠️ Erro ao carregar comandos:', err.message);
+  }
+})();
