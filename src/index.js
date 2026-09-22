@@ -40,6 +40,7 @@ const xpCooldown = new Map();
 client.on('eventoCriado', (messageId, pontos) => {
   eventosPontos.set(messageId, pontos);
 });
+
 client.on('interactionCreate', async (interaction) => {
 
   // ========== Slash commands ==========
@@ -86,6 +87,7 @@ client.on('interactionCreate', async (interaction) => {
     });
     return;
   }
+
   // ========== Select: ticketedit remove ==========
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticketedit_remove_menu') {
     let r = 0;
@@ -101,7 +103,7 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
-  // ========== Select: tipo de ticket ==========
+  // ========== Select: tipo de ticket (ABRE O TICKET COM FOTO) ==========
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_tipo_menu') {
     const tipo = getTipos().find(t => t.id === interaction.values[0]);
     if (!tipo) return interaction.reply({ content: '❌ Tipo não encontrado.', ephemeral: true });
@@ -127,6 +129,7 @@ client.on('interactionCreate', async (interaction) => {
         .setTitle(`${tipo.emoji} Ticket: ${tipo.nome}`)
         .setDescription(`Olá <@${interaction.user.id}>! Um membro da equipe vai te atender.`)
         .setTimestamp();
+      
       if (tipo.foto) embed.setImage(tipo.foto);
 
       const botoes = new ActionRowBuilder().addComponents(
@@ -154,7 +157,7 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
-  // ========== Select: loja produto ==========
+  // ========== Select: loja produto (PAGAMENTO COM FOTO) ==========
   if (interaction.isStringSelectMenu() && interaction.customId === 'loja_produto_menu') {
     const produto = getProduto(interaction.values[0]);
     if (!produto) return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
@@ -175,6 +178,8 @@ client.on('interactionCreate', async (interaction) => {
         `> Nome: **${pix.nome}**\n\n` +
         `Depois de pagar, clique em **Enviar Comprovante** abaixo.`
       );
+    
+    if (produto.foto) embed.setImage(produto.foto);
 
     const botao = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`loja_comprovante_${produto.id}`).setLabel('Enviar Comprovante').setEmoji('📎').setStyle(ButtonStyle.Success),
@@ -184,7 +189,7 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
-  // ========== Select: lojaedit editar produto ==========
+  // ========== Select: lojaedit editar produto (COM FOTO) ==========
   if (interaction.isStringSelectMenu() && interaction.customId === 'lojaedit_edit_menu') {
     const produto = getProduto(interaction.values[0]);
     if (!produto) return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
@@ -197,6 +202,7 @@ client.on('interactionCreate', async (interaction) => {
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('descricao').setLabel('Descrição').setStyle(TextInputStyle.Paragraph).setValue(produto.descricao).setRequired(true)),
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('preco').setLabel('Preço (ex: 19.90)').setStyle(TextInputStyle.Short).setValue(produto.preco.toString()).setRequired(true)),
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('entrega').setLabel('Entrega (link/código)').setStyle(TextInputStyle.Paragraph).setValue(produto.entrega).setRequired(true)),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('foto').setLabel('URL da Foto (opcional)').setStyle(TextInputStyle.Short).setValue(produto.foto || '').setRequired(false)),
       );
     await interaction.showModal(modal);
     return;
@@ -208,7 +214,8 @@ client.on('interactionCreate', async (interaction) => {
     for (const id of interaction.values) if (removeProduto(id)) r++;
     await interaction.update({ content: `✅ **${r}** produto(s) removido(s).`, embeds: [], components: [] });
     return;
-            }
+  }
+
   // ========== Botões ==========
   if (interaction.isButton()) {
     const userId = interaction.user.id;
@@ -328,7 +335,8 @@ client.on('interactionCreate', async (interaction) => {
         .addOptions(tipos.map(t => ({ label: t.nome.slice(0, 100), value: t.id })));
       return interaction.reply({ content: '🖼️ Escolha:', components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
     }
-    // --- Lojaedit: add ---
+
+    // --- Lojaedit: add (COM FOTO) ---
     if (interaction.customId === 'lojaedit_add') {
       const modal = new ModalBuilder()
         .setCustomId('lojaedit_add_modal')
@@ -339,6 +347,7 @@ client.on('interactionCreate', async (interaction) => {
           new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('preco').setLabel('Preço (ex: 19.90)').setStyle(TextInputStyle.Short).setRequired(true)),
           new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('entrega').setLabel('Entrega (link/código)').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000)),
           new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('emoji').setLabel('Emoji (opcional)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(5)),
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('foto').setLabel('URL da Foto (opcional)').setStyle(TextInputStyle.Short).setRequired(false)),
         );
       await interaction.showModal(modal);
       return;
@@ -367,11 +376,16 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: '🗑️ Selecione:', components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
     }
 
-    // --- Loja: enviar comprovante ---
+    // --- Loja: enviar comprovante (COM VERIFICAÇÃO) ---
     if (interaction.customId.startsWith('loja_comprovante_')) {
       const produtoId = interaction.customId.replace('loja_comprovante_', '');
       const produto = getProduto(produtoId);
       if (!produto) return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
+
+      const logsId = getLogsCompras();
+      if (!logsId || !interaction.guild.channels.cache.get(logsId)) {
+        return interaction.reply({ content: '❌ O canal de comprovantes não está configurado. Avise um administrador.', ephemeral: true });
+      }
 
       const modal = new ModalBuilder()
         .setCustomId(`loja_comprovante_modal_${produtoId}`)
@@ -437,6 +451,7 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
   }
+
   // ========== Modals ==========
   if (interaction.isModalSubmit()) {
 
@@ -448,27 +463,29 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.reply({ content: `✅ Tipo **${emoji} ${nome}** adicionado!`, ephemeral: true });
     }
 
-    // Lojaedit: add produto
+    // Lojaedit: add produto (COM FOTO)
     if (interaction.customId === 'lojaedit_add_modal') {
       const nome = interaction.fields.getTextInputValue('nome');
       const descricao = interaction.fields.getTextInputValue('descricao');
       const preco = parseFloat(interaction.fields.getTextInputValue('preco').replace(',', '.'));
       const entrega = interaction.fields.getTextInputValue('entrega');
       const emoji = interaction.fields.getTextInputValue('emoji') || '🛒';
+      const foto = interaction.fields.getTextInputValue('foto') || null;
 
       if (isNaN(preco)) return interaction.reply({ content: '❌ Preço inválido.', ephemeral: true });
 
-      addProduto(nome, descricao, preco, entrega, emoji);
+      addProduto(nome, descricao, preco, entrega, emoji, foto);
       return interaction.reply({ content: `✅ Produto **${emoji} ${nome}** adicionado!`, ephemeral: true });
     }
 
-    // Lojaedit: edit produto
+    // Lojaedit: edit produto (COM FOTO)
     if (interaction.customId.startsWith('lojaedit_edit_modal_')) {
       const id = interaction.customId.replace('lojaedit_edit_modal_', '');
       const nome = interaction.fields.getTextInputValue('nome');
       const descricao = interaction.fields.getTextInputValue('descricao');
       const preco = parseFloat(interaction.fields.getTextInputValue('preco').replace(',', '.'));
       const entrega = interaction.fields.getTextInputValue('entrega');
+      const foto = interaction.fields.getTextInputValue('foto') || null;
 
       if (isNaN(preco)) return interaction.reply({ content: '❌ Preço inválido.', ephemeral: true });
 
@@ -476,6 +493,7 @@ client.on('interactionCreate', async (interaction) => {
       updateProduto(id, 'descricao', descricao);
       updateProduto(id, 'preco', preco);
       updateProduto(id, 'entrega', entrega);
+      updateProduto(id, 'foto', foto);
 
       return interaction.reply({ content: `✅ Produto atualizado!`, ephemeral: true });
     }
@@ -488,7 +506,7 @@ client.on('interactionCreate', async (interaction) => {
       if (!produto) return interaction.reply({ content: '❌ Produto não existe mais.', ephemeral: true });
 
       const logsId = getLogsCompras();
-      if (!logsId) return interaction.reply({ content: '❌ Loja não configurou canal de comprovantes. Avise um admin.', ephemeral: true });
+      if (!logsId) return interaction.reply({ content: '❌ Loja não configurou canal de comprovantes.', ephemeral: true });
 
       const canal = interaction.guild.channels.cache.get(logsId);
       if (!canal) return interaction.reply({ content: '❌ Canal de comprovantes não existe mais.', ephemeral: true });
@@ -504,6 +522,8 @@ client.on('interactionCreate', async (interaction) => {
         )
         .setTimestamp();
 
+      if (produto.foto) embed.setThumbnail(produto.foto);
+
       const botoes = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`compra_aceitar_${interaction.user.id}`).setLabel('Aceitar').setEmoji('✅').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`compra_recusar_${interaction.user.id}`).setLabel('Recusar').setEmoji('❌').setStyle(ButtonStyle.Danger),
@@ -512,11 +532,12 @@ client.on('interactionCreate', async (interaction) => {
       const msg = await canal.send({ embeds: [embed], components: [botoes] });
       comprasPendentes.set(msg.id, { userId: interaction.user.id, produtoId });
 
-      return interaction.reply({ content: '✅ Comprovante enviado! Aguarde a confirmação da equipe.', ephemeral: true });
+      return interaction.reply({ content: '✅ Comprovante enviado! Aguarde a confirmação.', ephemeral: true });
     }
   }
 });
-// ====== Listener: foto de ticket ======
+
+// ====== Listener: foto de ticket + XP por mensagem ======
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
@@ -530,7 +551,6 @@ client.on('messageCreate', async (message) => {
     }
   }
 
-  // ====== XP por mensagem ======
   const userId = message.author.id;
   const agora = Date.now();
   const ultimo = xpCooldown.get(userId) || 0;
@@ -552,6 +572,7 @@ client.on('messageCreate', async (message) => {
     } catch {}
   }
 });
+
 // ====== Bot online ======
 client.once('ready', () => {
   console.log(`✅ Bot online como ${client.user.tag}`);
