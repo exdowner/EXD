@@ -17,6 +17,7 @@ import {
   getPix, getLogsCompras, addProduto, removeProduto, updateProduto,
   getProduto, getProdutos,
 } from './utils/loja.js';
+import { addXp, getXp, getLevelRole } from './utils/levels.js';
 
 const client = new Client({
   intents: [
@@ -34,11 +35,11 @@ const eventosParticipantes = new Map();
 const eventosPontos = new Map();
 const esperandoFoto = new Map();
 const comprasPendentes = new Map();
+const xpCooldown = new Map();
 
 client.on('eventoCriado', (messageId, pontos) => {
   eventosPontos.set(messageId, pontos);
 });
-
 client.on('interactionCreate', async (interaction) => {
 
   // ========== Slash commands ==========
@@ -85,7 +86,6 @@ client.on('interactionCreate', async (interaction) => {
     });
     return;
   }
-
   // ========== Select: ticketedit remove ==========
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticketedit_remove_menu') {
     let r = 0;
@@ -208,7 +208,7 @@ client.on('interactionCreate', async (interaction) => {
     for (const id of interaction.values) if (removeProduto(id)) r++;
     await interaction.update({ content: `✅ **${r}** produto(s) removido(s).`, embeds: [], components: [] });
     return;
-    }
+            }
   // ========== Botões ==========
   if (interaction.isButton()) {
     const userId = interaction.user.id;
@@ -328,7 +328,6 @@ client.on('interactionCreate', async (interaction) => {
         .addOptions(tipos.map(t => ({ label: t.nome.slice(0, 100), value: t.id })));
       return interaction.reply({ content: '🖼️ Escolha:', components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
     }
-
     // --- Lojaedit: add ---
     if (interaction.customId === 'lojaedit_add') {
       const modal = new ModalBuilder()
@@ -438,7 +437,6 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
   }
-
   // ========== Modals ==========
   if (interaction.isModalSubmit()) {
 
@@ -518,23 +516,42 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
-
 // ====== Listener: foto de ticket ======
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
   const tipoId = esperandoFoto.get(message.author.id);
-  if (!tipoId) return;
+  if (tipoId) {
+    const anexo = message.attachments.first();
+    if (anexo && anexo.contentType?.startsWith('image/')) {
+      setFotoTipo(tipoId, anexo.url);
+      esperandoFoto.delete(message.author.id);
+      return message.reply('✅ Foto salva!');
+    }
+  }
 
-  const anexo = message.attachments.first();
-  if (!anexo) return;
-  if (!anexo.contentType?.startsWith('image/')) return message.reply('⚠️ Manda uma imagem.');
+  // ====== XP por mensagem ======
+  const userId = message.author.id;
+  const agora = Date.now();
+  const ultimo = xpCooldown.get(userId) || 0;
+  if (agora - ultimo < 60000) return;
 
-  setFotoTipo(tipoId, anexo.url);
-  esperandoFoto.delete(message.author.id);
-  await message.reply('✅ Foto salva!');
+  xpCooldown.set(userId, agora);
+
+  const ganho = 15 + Math.floor(Math.random() * 11);
+  const antes = getXp(userId);
+  const depois = addXp(userId, ganho);
+
+  if (depois.level > antes.level) {
+    const roleId = getLevelRole(depois.level);
+    if (roleId) {
+      try { await message.member.roles.add(roleId); } catch {}
+    }
+    try {
+      await message.channel.send(`🎉 <@${userId}> subiu pro **nível ${depois.level}**!`);
+    } catch {}
+  }
 });
-
 // ====== Bot online ======
 client.once('ready', () => {
   console.log(`✅ Bot online como ${client.user.tag}`);
