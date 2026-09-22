@@ -129,7 +129,7 @@ client.on('interactionCreate', async (interaction) => {
         .setTitle(`${tipo.emoji} Ticket: ${tipo.nome}`)
         .setDescription(`Olá <@${interaction.user.id}>! Um membro da equipe vai te atender.`)
         .setTimestamp();
-      
+
       if (tipo.foto) embed.setImage(tipo.foto);
 
       const botoes = new ActionRowBuilder().addComponents(
@@ -178,7 +178,7 @@ client.on('interactionCreate', async (interaction) => {
         `> Nome: **${pix.nome}**\n\n` +
         `Depois de pagar, clique em **Enviar Comprovante** abaixo.`
       );
-    
+
     if (produto.foto) embed.setImage(produto.foto);
 
     const botao = new ActionRowBuilder().addComponents(
