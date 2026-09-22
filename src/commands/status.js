@@ -11,3 +11,12 @@ export const data = new SlashCommandBuilder()
       { name: 'Assistindo', value: 'watching' },
       { name: 'Ouvindo', value: 'listening' },
     ));
+
+export async function execute(interaction) {
+  if (!isDono(interaction.user.id)) return interaction.reply({ content: '❌ Só o dono.', ephemeral: true });
+  const texto = interaction.options.getString('texto');
+  const tipo = interaction.options.getString('tipo') || 'playing';
+  const types = { playing: ActivityType.Playing, watching: ActivityType.Watching, listening: ActivityType.Listening };
+  interaction.client.user.setActivity(texto, { type: types[tipo] });
+  await interaction.reply({ content: `✅ Status: **${texto}**`, ephemeral: true });
+}
