@@ -1,10 +1,7 @@
-// Estado em memória da loja
-// { pix: { tipo, chave, nome }, logsComprasChannelId, produtos: [] }
-
 export const lojaConfig = {
   pix: { tipo: null, chave: null, nome: null },
   logsComprasChannelId: null,
-  produtos: [], // [{ id, nome, descricao, preco, entrega, emoji }]
+  produtos: [], // [{ id, nome, descricao, preco, entrega, emoji, foto }]
 };
 
 export function setPix(tipo, chave, nome) {
@@ -23,7 +20,7 @@ export function getLogsCompras() {
   return lojaConfig.logsComprasChannelId;
 }
 
-export function addProduto(nome, descricao, preco, entrega, emoji = '🛒') {
+export function addProduto(nome, descricao, preco, entrega, emoji = '🛒', foto = null) {
   const produto = {
     id: `prod_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     nome,
@@ -31,6 +28,7 @@ export function addProduto(nome, descricao, preco, entrega, emoji = '🛒') {
     preco,
     entrega,
     emoji,
+    foto,
   };
   lojaConfig.produtos.push(produto);
   return produto;
