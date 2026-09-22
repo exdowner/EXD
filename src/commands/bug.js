@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { getLogsChannel } from '../utils/tickets.js';
 
 export const data = new SlashCommandBuilder()
   .setName('bug')
@@ -10,7 +11,17 @@ export async function execute(interaction) {
     .setColor(0xe74c3c)
     .setTitle('🐛 Bug Reportado')
     .setDescription(interaction.options.getString('descricao'))
-    .setFooter({ text: `Por ${interaction.user.tag}` });
+    .setFooter({ text: `Por ${interaction.user.tag}` })
+    .setTimestamp();
+
+  const logsId = getLogsChannel();
+  const canalLogs = logsId ? interaction.guild.channels.cache.get(logsId) : null;
+
   await interaction.reply({ content: '✅ Bug reportado!', ephemeral: true });
-  await interaction.channel.send({ embeds: [embed] });
+
+  if (canalLogs) {
+    await canalLogs.send({ embeds: [embed] });
+  } else {
+    await interaction.channel.send({ embeds: [embed] });
+  }
 }
