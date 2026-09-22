@@ -1,9 +1,6 @@
-// Guarda em memória a config de tickets
-// { logsChannelId, tipos: [{ id, nome, emoji, foto }], contador }
-
 export const config = {
   logsChannelId: null,
-  tipos: [], // [{ id: 'tipo_xxx', nome: 'Suporte', emoji: '🎫', foto: null }]
+  tipos: [],
   painelMessageId: null,
 };
 
@@ -50,5 +47,4 @@ export function getPainelMessageId() {
   return config.painelMessageId;
 }
 
-// Tickets abertos em memória
-export const ticketsAbertos = new Map(); // channelId -> { autorId, tipoId, reivindicadoPor }
+export const ticketsAbertos = new Map();
